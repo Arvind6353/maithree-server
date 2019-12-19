@@ -24,7 +24,9 @@ exports.getBranchProductDetailsForTarget = function (req, res, next) {
 
                 const r = groupBy(result, (c) => c.branch_product_id);
                 const op = resultData.map((rs, i) => {
-                    return Object.assign({}, rs, {targetVal: r[rs.bp_id] && r[rs.bp_id][0] ? r[rs.bp_id][0].targetVal : 0});
+                    return Object.assign({}, rs, {
+                        targetVal: r[rs.bp_id] && r[rs.bp_id][0] ? r[rs.bp_id][0].targetVal : 0
+                    });
                 })
                 callback(null, op);
             });
@@ -53,7 +55,10 @@ exports.getBranchProductDetailsForTarget = function (req, res, next) {
                     };
                 });
 
-                callback(null, {groupedBranches, template})
+                callback(null, {
+                    groupedBranches,
+                    template
+                })
 
             });
         },
@@ -148,9 +153,13 @@ function createOrReplaceTargets(req, res, next) {
         callback(null, []);
     }, function (err, result) {
         if (err) {
-            return res.json({status: false});
+            return res.json({
+                status: false
+            });
         }
-        return res.json({status: true});
+        return res.json({
+            status: true
+        });
 
     })
 }
@@ -180,56 +189,60 @@ exports.saveProductDetails = (req, res, next) => {
             productDescription,
             is_activity,
             tasks_length,
-            new Date()];
+            new Date()
+        ];
 
         // insert into product table
         db.query(insert_product_query, [values], function (err, result) {
-                if (err) {
-                    logger.error(err);
-                }
-                var product_id = result.insertId;
-
-                for (let task of tasks) {
-                    var task_values = [
-                        task.name,
-                        task.description,
-                        new Date(),
-                        product_id
-                    ];
-                    // insert into tasks table
-                    db.query(insert_task_query, [task_values], function (err, insRes) {
-                        if (err) {
-                            logger.error(err);
-                        }
-                    });
-
-                }
-
-                for (let branch_id of branchIds) {
-
-                    product_branch_values = [
-                        branch_id,
-                        product_id,
-                        new Date(),
-                        'Y'
-                    ];
-                    // insert into branch product mapping
-                    db.query(insert_branch_product_query, [product_branch_values], function (err, insRes) {
-                        if (err) {
-                            logger.error(err);
-                        }
-                    });
-
-                }
+            if (err) {
+                logger.error(err);
             }
-        );
+            var product_id = result.insertId;
+
+            for (let task of tasks) {
+                var task_values = [
+                    task.name,
+                    task.description,
+                    new Date(),
+                    product_id
+                ];
+                // insert into tasks table
+                db.query(insert_task_query, [task_values], function (err, insRes) {
+                    if (err) {
+                        logger.error(err);
+                    }
+                });
+
+            }
+
+            for (let branch_id of branchIds) {
+
+                product_branch_values = [
+                    branch_id,
+                    product_id,
+                    new Date(),
+                    'Y'
+                ];
+                // insert into branch product mapping
+                db.query(insert_branch_product_query, [product_branch_values], function (err, insRes) {
+                    if (err) {
+                        logger.error(err);
+                    }
+                });
+
+            }
+        });
 
 
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
-    return res.json({status: true});
+    return res.json({
+        status: true
+    });
 
 };
 
@@ -257,7 +270,9 @@ exports.getProducts = (req, res, next) => {
         });
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
@@ -293,13 +308,18 @@ exports.getProductDetails = (req, res, next) => {
                     });
 
                 }
-                return res.json({branches: branch_array, tasks: tasks_array});
+                return res.json({
+                    branches: branch_array,
+                    tasks: tasks_array
+                });
 
             });
         });
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
@@ -328,70 +348,73 @@ exports.editProductDetails = (req, res, next) => {
     try {
         // delete tasks into product table
         db.query(delete_task_query, function (err, result, fields) {
+            if (err) {
+                logger.error(err);
+            }
+
+            // insert tasks for product
+            for (let task of tasks) {
+                var task_values = [
+                    task.name,
+                    task.description,
+                    new Date(),
+                    product_id
+                ];
+                db.query(insert_task_query, [task_values], function (err, insRes) {
+                    if (err) {
+                        logger.error(err);
+                    }
+                });
+
+            }
+
+            // update product
+
+            db.query(update_product_query, [tasks_length, isActivity, product_id], function (err, result) {
+
                 if (err) {
                     logger.error(err);
                 }
+            });
 
-                // insert tasks for product
-                for (let task of tasks) {
-                    var task_values = [
-                        task.name,
-                        task.description,
-                        new Date(),
-                        product_id
-                    ];
-                    db.query(insert_task_query, [task_values], function (err, insRes) {
-                        if (err) {
-                            logger.error(err);
-                        }
-                    });
 
+            // delete branch product mapping
+
+            db.query(delete_branch_product_mapping_query, function (err, result) {
+
+                if (err) {
+                    logger.error(err);
                 }
+            });
+            for (let branch_id of branchIds) {
 
-                // update product
-
-                db.query(update_product_query, [tasks_length, isActivity, product_id], function (err, result) {
-
+                product_branch_values = [
+                    branch_id,
+                    product_id,
+                    new Date(),
+                    'Y'
+                ];
+                // insert into branch product mapping
+                db.query(insert_branch_product_query, [product_branch_values], function (err, insRes) {
                     if (err) {
                         logger.error(err);
                     }
                 });
-
-
-                // delete branch product mapping
-
-                db.query(delete_branch_product_mapping_query, function (err, result) {
-
-                    if (err) {
-                        logger.error(err);
-                    }
-                });
-                for (let branch_id of branchIds) {
-
-                    product_branch_values = [
-                        branch_id,
-                        product_id,
-                        new Date(),
-                        'Y'
-                    ];
-                    // insert into branch product mapping
-                    db.query(insert_branch_product_query, [product_branch_values], function (err, insRes) {
-                        if (err) {
-                            logger.error(err);
-                        }
-                    });
-
-                }
 
             }
-        );
+
+        });
 
 
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
-    return res.json({status: true});
+    return res.json({
+        status: true
+    });
 
 };
 
@@ -443,12 +466,14 @@ exports.getAllProductDetails = (req, res, next) => {
 
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
 exports.addMember = (req, res, next) => {
-    let name = req.body.initial+req.body.name;
+    let name = req.body.initial + req.body.name;
     let contact = req.body.contact;
     let code = req.body.code;
     let branchId = req.body.branchId;
@@ -466,24 +491,28 @@ exports.addMember = (req, res, next) => {
         ];
         db.query(insert_query, [payload], function (err, result) {
             if (err) throw err;
-            return res.json({status: true});
+            return res.json({
+                status: true
+            });
         });
     } catch (error) {
         console.log(error);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
-exports.getMembers = function(req,res,next) {
+exports.getMembers = function (req, res, next) {
     var sql = "SELECT * from `maithree-db`.member";
     try {
-       db.query(sql, function(err, result) {
-          if (err) {
-            logger.error(err);
-            return next(err);
-          }
-          logger.info("Teacher Data found for the branch id ");
-          res.json(result);
+        db.query(sql, function (err, result) {
+            if (err) {
+                logger.error(err);
+                return next(err);
+            }
+            logger.info("Teacher Data found for the branch id ");
+            res.json(result);
         });
     } catch (err) {
         logger.error(err);
@@ -492,7 +521,7 @@ exports.getMembers = function(req,res,next) {
 };
 
 exports.updateMember = (req, res, next) => {
-    let name = req.body.initial+req.body.name;
+    let name = req.body.initial + req.body.name;
     let contact = req.body.contact;
     let code = req.body.code;
     let branchId = req.body.branchId;
@@ -512,11 +541,15 @@ exports.updateMember = (req, res, next) => {
         ];
         db.query(udpate_query, payload, function (err, result) {
             if (err) throw err;
-            return res.json({status: true});
+            return res.json({
+                status: true
+            });
         });
     } catch (error) {
         console.log(error);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
@@ -555,87 +588,95 @@ exports.addStudentDetails = (req, res, next) => {
             dob,
             branchId,
             memberId,
-            new Date()];
+            new Date()
+        ];
 
         // insert into student table
         db.query(insert_student_query, [student_values], function (err, result) {
-                if (err) {
-                    logger.error(err);
-                    res.json({status: false});
+            if (err) {
+                logger.error(err);
+                res.json({
+                    status: false
+                });
 
-                } else {
-                    var student_id = result.insertId;
+            } else {
+                var student_id = result.insertId;
 
-                    async.forEach(tasks, processEachTask, onProcessCompletedForAllTasks);
+                async.forEach(tasks, processEachTask, onProcessCompletedForAllTasks);
 
-                    function processEachTask (task, callbackFromTask) {
+                function processEachTask(task, callbackFromTask) {
 
-                        var task_values = [
-                            task.productId,
-                            task.taskId,
-                            student_id,
-                            new Date()
-                        ];
-                        // insert into student and tasks mapping table
-                        db.query(insert_student_task_mapping_query, [task_values], function (err, insRes) {
-                            if (err) {
-                                logger.error(err);
-                                callbackFromTask(err);
+                    var task_values = [
+                        task.productId,
+                        task.taskId,
+                        student_id,
+                        new Date()
+                    ];
+                    // insert into student and tasks mapping table
+                    db.query(insert_student_task_mapping_query, [task_values], function (err, insRes) {
+                        if (err) {
+                            logger.error(err);
+                            callbackFromTask(err);
 
-                            }
-                            console.log("completed task",  insRes);
-                            callbackFromTask(null);
+                        }
+                        console.log("completed task", insRes);
+                        callbackFromTask(null);
 
+                    });
+                }
+
+                function onProcessCompletedForAllTasks(err) {
+                    console.log("Al tasks added    ", err);
+                    if (err) {
+                        console.log("Al tasks added errr    ", err);
+
+                        res.json({
+                            status: false
+                        });
+                    } else {
+                        console.log("Al tasks added no err   ", err);
+
+                        res.json({
+                            status: true
                         });
                     }
 
-                    function onProcessCompletedForAllTasks(err) {
-                        console.log("Al tasks added    " , err);
-                        if (err) {
-                            console.log("Al tasks added errr    " , err);
-
-                            res.json({status: false});
-                        }
-                        else {
-                            console.log("Al tasks added no err   " , err);
-
-                            res.json({status: true});
-                        }
-
-                    }
                 }
-
             }
-        );
+
+        });
 
 
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
 };
 
 
 exports.editStudentDetails = (req, res, next) => {
 
-    var firstName = req.body.firstName;
-    var middleName = req.body.middleName;
-    var lastName = req.body.lastName;
-    var nickName = req.body.nickName;
-    var guardainName = req.body.guardainName;
-    var phoneNumber = req.body.phoneNumber;
-    var emailAddress = req.body.emailAddress;
-    var address = req.body.address;
-    var state = req.body.state;
-    var pincode = req.body.pincode;
-    var gender = req.body.gender;
-    var dob = req.body.dob;
-    var branchId = req.body.branchId;
-    var studentId = req.body.id;
-    var memberId = req.body.memberId;
+    let firstName = req.body.firstName;
+    let middleName = req.body.middleName;
+    let lastName = req.body.lastName;
+    let nickName = req.body.nickName;
+    let guardainName = req.body.guardainName;
+    let phoneNumber = req.body.phoneNumber;
+    let emailAddress = req.body.emailAddress;
+    let address = req.body.address;
+    let state = req.body.state;
+    let pincode = req.body.pincode;
+    let gender = req.body.gender;
+    let dob = req.body.dob;
+    let branchId = req.body.branchId;
+    let studentId = req.body.id;
+    let memberId = req.body.memberId;
+    let tasks = req.body.tasks;
 
 
-    var delete_student_task_mapping_query = "delete from  `student_task_mapping_details` where student_details_student_id =" + studentId;
+    var delete_student_task_mapping_query = "delete from  `student_task_mapping_details` where student_details_student_id = ?";
     var insert_student_task_mapping_query = "INSERT into `student_task_mapping_details` (product_master_id,product_master_steps_id,student_details_student_id,created_time) VALUES(?)";
 
     var update_student_query = "update `maithree-db`.`student_details` set first_name = ? ,middle_name = ?,last_name = ?,nick_name = ?,guardain_name = ?,phone_number = ?,email_address = ?,address = ?,state = ?,pincode = ?,gender = ?,dob = ?,branch_id = ?, member_id = ?, created_time= ? where student_id = ? ";
@@ -659,32 +700,56 @@ exports.editStudentDetails = (req, res, next) => {
             branchId,
             memberId,
             new Date(),
-            studentId];
+            studentId
+        ];
 
-            // update student
-            db.query(update_student_query, student_values, function (err, result) {
+        // update student
+        db.query(update_student_query, student_values, function (err, result) {
+            if (err) {
+                logger.error(err);
+            }
+        });
+
+        db.query(delete_student_task_mapping_query, [studentId], function (err, result) {
+            if (err) {
+                logger.error(err);
+            }
+        });
+
+        tasks.forEach(task => {
+            let taskMapping = [
+                task.productId,
+                task.taskId,
+                studentId,
+                new Date()
+            ];
+
+            db.query(insert_student_task_mapping_query, [taskMapping], function (err, result) {
                 if (err) {
                     logger.error(err);
                 }
             });
-
+        });
     } catch (err) {
         logger.error(err);
-        return res.json({status: false});
+        return res.json({
+            status: false
+        });
     }
-    return res.json({status: true});
-
+    return res.json({
+        status: true
+    });
 };
 
-exports.getAllStudents = function(req,res,next) {
+exports.getAllStudents = function (req, res, next) {
     var sql = "SELECT * from `maithree-db`.student_details";
     try {
-       db.query(sql, function(err, result) {
-          if (err) {
-            logger.error(err);
-            return next(err);
-          }
-          res.json(result);
+        db.query(sql, function (err, result) {
+            if (err) {
+                logger.error(err);
+                return next(err);
+            }
+            res.json(result);
         });
     } catch (err) {
         logger.error(err);
