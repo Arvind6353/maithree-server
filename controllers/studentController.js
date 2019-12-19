@@ -6,9 +6,7 @@ var async = require("async");
 var _ = require("lodash");
 
 const sql_date_format = 'YYYY-MM-DD';
-    
-exports.getStudentsByBranch = (req,res,next) => {
-    
+exports.getStudentsByBranch = (req, res, next) => {
     var sql = "SELECT student_id as studentId, first_name as firstName, last_name as lastName from `student_details` where branch_id = ?";
     var branchId = req.params.id
     var teacherID = parseInt(req.query.teacherID);
@@ -37,7 +35,30 @@ exports.getStudentsByBranch = (req,res,next) => {
     }
 }
 
-exports.getStudentDetailsByID = (req,res,next) => {
+exports.getTasksAndProductsByStudentID = (req, res, next) => {
+    var sql = "select stud_task.mapping_id as mappingId, steps.id as taskId, steps.task_name as taskName, \
+    prod.id as productId, prod.product_name as productName, stud_task.student_details_student_id \
+    from `maithree-db`.product_master_steps steps, `maithree-db`.product_master prod, `maithree-db`.student_task_mapping_details stud_task \
+    where steps.product_master_id = prod.id and stud_task.product_master_id = prod.id \
+    AND stud_task.product_master_steps_id = steps.id and stud_task.student_details_student_id = ? \
+    order by productId ASC, taskId ASC;";
+
+    var id = req.params.id
+    try {
+        db.query(sql, [id], function (err, result) {
+            if (err) {
+                logger.error(err);
+                return next(err);
+            }
+            res.json(result);
+        });
+    } catch (err) {
+        logger.error(err);
+        next(err);
+    }
+};
+
+exports.getStudentDetailsByID = (req, res, next) => {
 
     var fetch_student_details_sql = "SELECT student_id as studentId, first_name as firstName,middle_name as middleName,last_name as lastName,nick_name as nickName,guardain_name as guardainName,phone_number as phoneNumber,\
          email_address as emailAddress, address as address,state as state,pincode as pincode,gender as gender,dob as dob,branch_id as branchId \
@@ -52,8 +73,7 @@ exports.getStudentDetailsByID = (req,res,next) => {
             if (err) {
                 logger.error(err);
                 return next(err);
-            }
-            else {
+            } else {
                 var fetch_student_task_details_sql = "select steps.id as taskId, steps.task_name as taskName, prod.id as productId, prod.product_name as productName from `maithree-db`.product_master_steps steps \
                     JOIN `maithree-db`.product_master prod ON steps.product_master_id = prod.id \
                     JOIN `maithree-db`.student_task_mapping_details stud_task ON stud_task.product_master_id = prod.id AND stud_task.product_master_steps_id = steps.id \
@@ -65,15 +85,15 @@ exports.getStudentDetailsByID = (req,res,next) => {
                     if (err) {
                         logger.error(err);
                         return next(err);
-                    }
-                    else {
+                    } else {
                         if (final_response) {
                             final_response.tasks = result;
                             logger.info(" Student details retrived for Student ID ::: ", JSON.stringify(final_response));
                             res.json(final_response);
-                        }
-                        else {
-                            res.status(404).json({error : "No Student details found for the Student ID: " + studentId});
+                        } else {
+                            res.status(404).json({
+                                error: "No Student details found for the Student ID: " + studentId
+                            });
                         }
                     }
                 });
@@ -85,68 +105,67 @@ exports.getStudentDetailsByID = (req,res,next) => {
     }
 }
 
-exports.getProductsForStudent = (req,res,next) => {
+exports.getProductsForStudent = (req, res, next) => {
 
     var sql = "SELECT distinct(prod.id) as productId, prod.product_name as productName from `maithree-db`.`student_task_mapping_details` stud_task join `maithree-db`.product_master prod ON stud_task.product_master_id = prod.id where stud_task.student_details_student_id = ?";
     var studentId = req.body.studentId;
     logger.info(`Get Products for Student id ::: ${studentId}`);
 
     try {
-        db.query(sql,[studentId], (err, result) => {
-           if (err) {
-             logger.error(err);
-             return next(err);
-           }
-           logger.info(" Products data retrived for student ::: ", JSON.stringify(result));
-           res.json(result);
-         });
-     } catch (err) {
-         logger.error(err);
-         next(err);
-     }
+        db.query(sql, [studentId], (err, result) => {
+            if (err) {
+                logger.error(err);
+                return next(err);
+            }
+            logger.info(" Products data retrived for student ::: ", JSON.stringify(result));
+            res.json(result);
+        });
+    } catch (err) {
+        logger.error(err);
+        next(err);
+    }
 }
 
-exports.getTasksMappedForProduct = (req,res,next) => {
+exports.getTasksMappedForProduct = (req, res, next) => {
 
     var fetch_tasks_for_product_sql = "select prod.id as productId, steps.id as taskId, task_name as taskName, task_description as taskDescription, target, completed from `maithree-db`.product_master_steps steps JOIN `maithree-db`.product_master prod ON steps.product_master_id = prod.id JOIN `maithree-db`.student_task_mapping_details stud_task ON stud_task.product_master_id = prod.id AND stud_task.product_master_steps_id = steps.id LEFT OUTER JOIN (select * from `maithree-db`.student_task_tracking where date = current_date()) tracking ON stud_task.mapping_id = tracking.student_task_mapping_details_mapping_id where stud_task.product_master_id = ? AND stud_task.student_details_student_id = ?";
 
     logger.info(`Get Products for Product id ::: ${req.body.productId} , Student Id ::: ${req.body.studentId}`);
 
     try {
-        db.query(fetch_tasks_for_product_sql,[req.body.productId,req.body.studentId], (err, result) => {
-           if (err) {
-             logger.error(err);
-             return next(err);
-           }
-           var transformed_response = result.map((each_obj) => {
+        db.query(fetch_tasks_for_product_sql, [req.body.productId, req.body.studentId], (err, result) => {
+            if (err) {
+                logger.error(err);
+                return next(err);
+            }
+            var transformed_response = result.map((each_obj) => {
                 if (each_obj.target === null && each_obj.completed === null) {
                     each_obj.assigned = false;
                     each_obj.target = 0;
                     each_obj.completed = 0;
                     return each_obj;
-                }
-                else {
+                } else {
                     return {
-                        productId : each_obj.productId,
-                        taskId : each_obj.taskId,
-                        taskName : each_obj.taskName,
-                        taskDescription : each_obj.taskDescription,
-                        completed : each_obj.completed,
-                        target : each_obj.target,
-                        assigned : true
+                        productId: each_obj.productId,
+                        taskId: each_obj.taskId,
+                        taskName: each_obj.taskName,
+                        taskDescription: each_obj.taskDescription,
+                        completed: each_obj.completed,
+                        target: each_obj.target,
+                        assigned: true
                     }
                 }
-           })
-           logger.info(" Tasks retrived for product ::: ", JSON.stringify(transformed_response));
-           res.json(transformed_response);
-         });
-     } catch (err) {
-         logger.error(err);
-         next(err);
-     }
+            })
+            logger.info(" Tasks retrived for product ::: ", JSON.stringify(transformed_response));
+            res.json(transformed_response);
+        });
+    } catch (err) {
+        logger.error(err);
+        next(err);
+    }
 }
 
-exports.saveStudentTrackingDetails = (req,res,next) => {
+exports.saveStudentTrackingDetails = (req, res, next) => {
 
     var taskdetails = req.body.task;
 
@@ -188,7 +207,9 @@ exports.saveStudentTrackingDetails = (req,res,next) => {
 
     function onProcessCompletedForAllTaskDetail() {
         logger.info(" Tracking details completed for student ::: ", req.body.studentId, " , tracking id are ::: ", tracking_ids);
-        res.json({trackingIds : tracking_ids});
+        res.json({
+            trackingIds: tracking_ids
+        });
     }
 }
 
@@ -255,26 +276,29 @@ exports.saveStudentTrackingDetails = (req,res,next) => {
 
 // }
 
-function sameMonth (a, b, other) {
+function sameMonth(a, b, other) {
     if (a.month() !== b.month()) {
         return moment(other).format(sql_date_format);
     }
     return moment(a).format(sql_date_format);
 }
 
-function weeks (m) {
-    var lastOfMonth     = m.clone().endOf('month'),
-        firstOfMonth    = m.clone().startOf('month'),
-        currentWeek     = firstOfMonth.clone().day(0),
-        output          = [],
+function weeks(m) {
+    var lastOfMonth = m.clone().endOf('month'),
+        firstOfMonth = m.clone().startOf('month'),
+        currentWeek = firstOfMonth.clone().day(0),
+        output = [],
         startOfWeek,
         endOfWeek;
 
     while (currentWeek <= lastOfMonth) {
         startOfWeek = sameMonth(currentWeek.clone().day(0), firstOfMonth, firstOfMonth);
         endOfWeek = sameMonth(currentWeek.clone().day(6), firstOfMonth, lastOfMonth);
-        
-        output.push({start: startOfWeek, end: endOfWeek});
+
+        output.push({
+            start: startOfWeek,
+            end: endOfWeek
+        });
         currentWeek.add(7, 'days');
     }
     return output;
@@ -283,8 +307,8 @@ function weeks (m) {
 function quarters(quarterIndex) {
     let output = [];
     let monthsToAdd = 0;
-    switch(quarterIndex) {
-        case 1: 
+    switch (quarterIndex) {
+        case 1:
             monthsToAdd = 0;
             break;
         case 2:
@@ -301,14 +325,14 @@ function quarters(quarterIndex) {
     }
     let m = moment().startOf("year");
     output.push({
-        start: m.clone().add(monthsToAdd,'months').startOf("month").format(sql_date_format), 
-        end: m.clone().add(monthsToAdd,'months').endOf("month").format(sql_date_format)
-    },{
-        start: m.clone().add(monthsToAdd+ 1,'months').startOf("month").format(sql_date_format), 
-        end: m.clone().add(monthsToAdd + 1,'month').endOf("month").format(sql_date_format)
-    },{
-        start: m.clone().add(monthsToAdd + 2,'months').startOf("month").format(sql_date_format), 
-        end: m.clone().add(monthsToAdd + 2,'month').endOf("month").format(sql_date_format)
+        start: m.clone().add(monthsToAdd, 'months').startOf("month").format(sql_date_format),
+        end: m.clone().add(monthsToAdd, 'months').endOf("month").format(sql_date_format)
+    }, {
+        start: m.clone().add(monthsToAdd + 1, 'months').startOf("month").format(sql_date_format),
+        end: m.clone().add(monthsToAdd + 1, 'month').endOf("month").format(sql_date_format)
+    }, {
+        start: m.clone().add(monthsToAdd + 2, 'months').startOf("month").format(sql_date_format),
+        end: m.clone().add(monthsToAdd + 2, 'month').endOf("month").format(sql_date_format)
     })
     return output;
 }
@@ -319,7 +343,7 @@ exports.getStudentProgress = (req, res, next) => {
     let type = req.query.type;
     let dateRanges = [];
     let reqDate = null;
-    if(type === "quarterly") {
+    if (type === "quarterly") {
         console.log("get quarterly results");
         console.log(req.query.quarterIndex) 
         let quarterIndex = req.query.quarterIndex || '0';
@@ -330,7 +354,7 @@ exports.getStudentProgress = (req, res, next) => {
         let original_date = moment(reqDate).startOf("month");
         dateRanges = weeks(moment(original_date, sql_date_format));
     }
-   
+
     let summaryData = [];
     let uiData = [];
 
@@ -341,41 +365,41 @@ exports.getStudentProgress = (req, res, next) => {
         where stud_task.student_details_student_id = ? group by productId, taskId order by productId ASC, taskId ASC"
 
     let dbAllResults = [];
-    async.eachSeries(dateRanges, function(range,cb) {
+    async.eachSeries(dateRanges, function (range, cb) {
         console.log("Dates ***");
         console.log(range.start, range.end)
         db.query(fetch_count_query, [range.start, range.end, studentId], (err, results) => {
-            if(err) {
+            if (err) {
                 dbAllResults.push([]);
             } else {
                 dbAllResults.push(results);
             }
             cb();
         });
-    }, function(err, done) {
-        if(err) {
+    }, function (err, done) {
+        if (err) {
             return res.json({
-                uiData : [],
+                uiData: [],
                 dateRanges
             });
         }
-        
+
         summaryData = [...dbAllResults];
         let uniqueProductTasksMap = [];
         let uniqueProductTasksDetails = [];
 
         // find unique product and tasks in the system
-        summaryData.forEach((eachRow, i ) => {
-            eachRow.forEach((eachProductTask,j) => {
-                if(eachProductTask) {
-                    let key = eachProductTask.productId+ " - "+ eachProductTask.taskId;
-                    if(!uniqueProductTasksMap[key]) {
+        summaryData.forEach((eachRow, i) => {
+            eachRow.forEach((eachProductTask, j) => {
+                if (eachProductTask) {
+                    let key = eachProductTask.productId + " - " + eachProductTask.taskId;
+                    if (!uniqueProductTasksMap[key]) {
                         uniqueProductTasksMap.push(key);
                         uniqueProductTasksDetails.push({
-                            productId : eachProductTask.productId,
-                            taskId : eachProductTask.taskId,
+                            productId: eachProductTask.productId,
+                            taskId: eachProductTask.taskId,
                             productName: eachProductTask.productName,
-                            taskName : eachProductTask.taskName     
+                            taskName: eachProductTask.taskName
                         })
                     }
                 }
@@ -387,7 +411,7 @@ exports.getStudentProgress = (req, res, next) => {
             let obj = {
                 ...productTask
             }
-            let newMetricsArr = [...Array(summaryData.length)].map((metric,i) => {
+            let newMetricsArr = [...Array(summaryData.length)].map((metric, i) => {
                 let summaryRow = summaryData[i];
                 let values = summaryRow.find(f => f.productId == productTask.productId &&
                     f.taskId == productTask.taskId);
@@ -399,7 +423,7 @@ exports.getStudentProgress = (req, res, next) => {
             obj.metrics = newMetricsArr;
             uiData.push(obj);
         });
-        
+
         res.json({
             uiData,
             dateRanges
